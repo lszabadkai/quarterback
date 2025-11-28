@@ -17,6 +17,7 @@ QuarterBack pairs a lightweight capacity estimator with a tactile, quarter-aware
 - 13-week swimlanes with sticky headers, live "today" detection, and multi-quarter selectors.
 - Timeline tooltips echo exact dates while you drag or resize.
 - Per-person rows with avatars make ownership obvious during reviews.
+- Auto-allocation and default backlog windows skip weekends to reflect real working days.
 
 ### Capacity intelligence
 - Region + role profiles drive PTO, holidays, and focus multipliers.
@@ -27,6 +28,7 @@ QuarterBack pairs a lightweight capacity estimator with a tactile, quarter-aware
 - Backlog dock surfaces unscheduled or unassigned cards with ICE badges.
 - Drag cards onto a lane to auto-fill owners and seed a two-week window.
 - Ripcord handle or hover-over-dock gesture immediately unschedules work and sends it back to backlog.
+- Mandatory man-day estimates keep every card grounded in tangible effort even before dates exist.
 
 ### Collaboration & sharing
 - PNG/PDF board snapshots, CSV + JSON exports, guarded imports, and shareable URLs for async reviews.

@@ -1,9 +1,7 @@
 import { defineConfig } from 'vite';
 
-const repoName = 'quarterview';
-
 export default defineConfig(({ mode }) => {
-  const basePath = process.env.VITE_BASE_PATH ?? `/${repoName}/`;
+  const basePath = process.env.VITE_BASE_PATH ?? './';
 
   return {
     base: mode === 'production' ? basePath : '/',

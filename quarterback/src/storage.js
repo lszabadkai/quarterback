@@ -1,11 +1,12 @@
 export const Storage = {
   keys: {
-    CAPACITY: 'quarterview_capacity',
-    PROJECTS: 'quarterview_projects',
-    TEAM: 'quarterview_team',
-    SETTINGS: 'quarterview_settings',
-    REGIONS: 'quarterview_regions',
-    ROLES: 'quarterview_roles',
+    CAPACITY: 'quarterback_capacity',
+    PROJECTS: 'quarterback_projects',
+    TEAM: 'quarterback_team',
+    SETTINGS: 'quarterback_settings',
+    REGIONS: 'quarterback_regions',
+    ROLES: 'quarterback_roles',
+    COMPANY_HOLIDAYS: 'quarterback_company_holidays',
   },
 
   saveCapacity(data) {
@@ -98,15 +99,27 @@ export const Storage = {
   },
 
   loadSettings() {
+    const defaults = this.getDefaultSettings();
     const data = localStorage.getItem(this.keys.SETTINGS);
-    return data ? JSON.parse(data) : this.getDefaultSettings();
+    if (!data) return defaults;
+    try {
+      const parsed = JSON.parse(data);
+      return { ...defaults, ...parsed };
+    } catch (error) {
+      console.warn('Unable to parse settings from storage', error);
+      return defaults;
+    }
   },
 
   getDefaultSettings() {
+    const prefersDark = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-color-scheme: dark)').matches;
     return {
       viewType: 'quarter',
       groupBy: 'person',
       currentQuarter: this.getCurrentQuarter(),
+      theme: prefersDark ? 'dark' : 'light',
     };
   },
 
@@ -122,6 +135,32 @@ export const Storage = {
     Object.values(this.keys).forEach((key) => localStorage.removeItem(key));
   },
 
+  saveCompanyHolidays(holidays) {
+    localStorage.setItem(this.keys.COMPANY_HOLIDAYS, JSON.stringify(holidays));
+  },
+
+  loadCompanyHolidays() {
+    const data = localStorage.getItem(this.keys.COMPANY_HOLIDAYS);
+    return data ? JSON.parse(data) : this.getDefaultCompanyHolidays();
+  },
+
+  getDefaultCompanyHolidays() {
+    // Default US company holidays for current year
+    const year = new Date().getFullYear();
+    return [
+      { date: `${year}-01-01`, name: "New Year's Day" },
+      { date: `${year}-01-15`, name: 'MLK Day' },
+      { date: `${year}-02-19`, name: "Presidents' Day" },
+      { date: `${year}-05-27`, name: 'Memorial Day' },
+      { date: `${year}-07-04`, name: 'Independence Day' },
+      { date: `${year}-09-02`, name: 'Labor Day' },
+      { date: `${year}-11-28`, name: 'Thanksgiving' },
+      { date: `${year}-11-29`, name: 'Day after Thanksgiving' },
+      { date: `${year}-12-25`, name: 'Christmas Day' },
+      { date: `${year}-12-26`, name: 'Day after Christmas' },
+    ];
+  },
+
   exportData() {
     return {
       capacity: this.loadCapacity(),
@@ -130,6 +169,7 @@ export const Storage = {
       settings: this.loadSettings(),
       regions: this.loadRegions(),
       roles: this.loadRoles(),
+      companyHolidays: this.loadCompanyHolidays(),
       exportDate: new Date().toISOString(),
     };
   },
@@ -141,5 +181,6 @@ export const Storage = {
     if (data.settings) this.saveSettings(data.settings);
     if (data.regions) this.saveRegions(data.regions);
     if (data.roles) this.saveRoles(data.roles);
+    if (data.companyHolidays) this.saveCompanyHolidays(data.companyHolidays);
   },
 };

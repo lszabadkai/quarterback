@@ -1,11 +1,11 @@
-# QuarterView - Deployment Plan for GitHub Pages
+# QuarterBack - Deployment Plan for GitHub Pages
 
 I'll create a complete web app that can be deployed to GitHub Pages. This will be a single-page application using vanilla JavaScript, HTML, and CSS.
 
 ## Project Structure
 
 ```
-quarterview/
+quarterback/
 ├── index.html
 ├── css/
 │   └── styles.css
@@ -28,14 +28,14 @@ quarterview/
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QuarterView - Quarterly Planning for Engineering Managers</title>
+    <title>QuarterBack - Quarterly Planning for Engineering Managers</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="header-content">
-            <h1>📊 QuarterView</h1>
+            <h1>📊 QuarterBack</h1>
             <div class="header-controls">
                 <select id="quarterSelect" class="quarter-select">
                     <option value="Q1-2024">Q1 2024</option>
@@ -104,7 +104,7 @@ quarterview/
     <!-- Empty State -->
     <div class="empty-state" id="emptyState">
         <div class="empty-state-content">
-            <h2>👋 Welcome to QuarterView!</h2>
+            <h2>👋 Welcome to QuarterBack!</h2>
             <p>Start by setting up your team capacity, then add your first project.</p>
             <button class="btn btn-primary btn-large" id="setupCapacityBtn">⚙️ Set Up Team Capacity</button>
             <button class="btn btn-secondary btn-large" id="addFirstProjectBtn">+ Add First Project</button>
@@ -961,10 +961,10 @@ textarea:focus {
 
 const Storage = {
     keys: {
-        CAPACITY: 'quarterview_capacity',
-        PROJECTS: 'quarterview_projects',
-        TEAM: 'quarterview_team',
-        SETTINGS: 'quarterview_settings'
+        CAPACITY: 'quarterback_capacity',
+        PROJECTS: 'quarterback_projects',
+        TEAM: 'quarterback_team',
+        SETTINGS: 'quarterback_settings'
     },
 
     // Save capacity data
@@ -1761,7 +1761,7 @@ const App = {
     // Export as CSV
     exportCSV() {
         const csv = this.generateCSV();
-        this.downloadFile(csv, 'quarterview-projects.csv', 'text/csv');
+        this.downloadFile(csv, 'quarterback-projects.csv', 'text/csv');
         this.showToast('CSV exported successfully', 'success');
         this.closeExportModal();
     },
@@ -1793,7 +1793,7 @@ const App = {
     exportJSON() {
         const data = Storage.exportData();
         const json = JSON.stringify(data, null, 2);
-        this.downloadFile(json, 'quarterview-data.json', 'application/json');
+        this.downloadFile(json, 'quarterback-data.json', 'application/json');
         this.showToast('Data exported successfully', 'success');
         this.closeExportModal();
     },
@@ -1863,7 +1863,7 @@ window.App = App;
 ### 7. README.md
 
 ```markdown
-# QuarterView 📊
+# QuarterBack 📊
 
 A lightweight Gantt chart tool for engineering managers to visualize quarterly planning and estimate team capacity.
 
@@ -1890,7 +1890,7 @@ A lightweight Gantt chart tool for engineering managers to visualize quarterly p
 1. Fork this repository
 2. Go to Settings → Pages
 3. Select "main" branch as source
-4. Your app will be available at `https://yourusername.github.io/quarterview/`
+4. Your app will be available at `https://yourusername.github.io/quarterback/`
 
 ## Usage
 
@@ -1974,15 +1974,15 @@ node_modules/
 
 ## Deployment Instructions
 
-1. **Create a new GitHub repository** named `quarterview`
+1. **Create a new GitHub repository** named `quarterback`
 
 2. **Initialize and push:**
 ```bash
 git init
 git add .
-git commit -m "Initial commit: QuarterView v1.0"
+git commit -m "Initial commit: QuarterBack v1.0"
 git branch -M main
-git remote add origin https://github.com/yourusername/quarterview.git
+git remote add origin https://github.com/yourusername/quarterback.git
 git push -u origin main
 ```
 
@@ -1993,7 +1993,7 @@ git push -u origin main
    - Click Save
 
 4. **Access your app:**
-   - URL will be: `https://yourusername.github.io/quarterview/`
+   - URL will be: `https://yourusername.github.io/quarterback/`
 
 ## Next Steps
 

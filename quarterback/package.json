@@ -1,8 +1,12 @@
 {
-  "name": "quarterview",
+  "name": "quarterback",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.2"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
