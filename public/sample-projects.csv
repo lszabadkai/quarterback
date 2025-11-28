@@ -1,0 +1,4 @@
+Project Name,Assignees,Start Date,End Date,Status,Type,Confidence,ICE Impact,ICE Confidence,ICE Effort,ICE Score,Story Points,Man Day Estimate
+"Unified Search","Alice Chen; Bob Smith",2025-01-06,2025-02-14,in-progress,feature,high,8,7,5,11.2,13,30
+"Site Reliability Uplift","Carol Davis",2025-03-03,2025-03-28,planned,infrastructure,medium,6,6,4,9,8,15
+"Checkout Resilience","David Kumar",2025-02-17,2025-04-04,at-risk,tech-debt,low,7,4,6,4.7,20,45
