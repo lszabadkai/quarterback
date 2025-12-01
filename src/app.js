@@ -29,6 +29,7 @@ class QuarterBackApp {
     this.redoStack = [];
     this.maxHistorySize = 50;
     this.selectedProjectId = null;
+    this.spreadsheetInstance = null;
   }
 
   init() {
@@ -294,6 +295,14 @@ class QuarterBackApp {
     document.getElementById('closeHolidaysModal')?.addEventListener('click', () => this.closeHolidaysModal());
     document.getElementById('saveHolidaysBtn')?.addEventListener('click', () => this.closeHolidaysModal());
     document.getElementById('addHolidayBtn')?.addEventListener('click', () => this.addCompanyHoliday());
+
+    // Spreadsheet modal
+    document.getElementById('spreadsheetBtn')?.addEventListener('click', () => this.openSpreadsheetModal());
+    document.getElementById('closeSpreadsheetModal')?.addEventListener('click', () => this.closeSpreadsheetModal());
+    document.getElementById('cancelSpreadsheetBtn')?.addEventListener('click', () => this.closeSpreadsheetModal());
+    document.getElementById('saveSpreadsheetBtn')?.addEventListener('click', () => this.saveSpreadsheetChanges());
+    document.getElementById('addRowBtn')?.addEventListener('click', () => this.addSpreadsheetRow());
+    document.getElementById('deleteSelectedRowsBtn')?.addEventListener('click', () => this.deleteSelectedSpreadsheetRows());
 
     document.querySelectorAll('.modal').forEach((modal) => {
       modal.addEventListener('click', (event) => {
@@ -1675,6 +1684,220 @@ class QuarterBackApp {
     this.companyHolidays = this.companyHolidays.filter((h) => h.date !== dateStr);
     Storage.saveCompanyHolidays(this.companyHolidays);
     this.renderCompanyHolidays();
+  }
+
+  // ========================================
+  // Spreadsheet Modal Methods
+  // ========================================
+
+  openSpreadsheetModal() {
+    document.getElementById('spreadsheetModal')?.classList.add('active');
+    this.initSpreadsheet();
+  }
+
+  closeSpreadsheetModal() {
+    document.getElementById('spreadsheetModal')?.classList.remove('active');
+    if (this.spreadsheetInstance) {
+      this.spreadsheetInstance.destroy();
+      this.spreadsheetInstance = null;
+    }
+  }
+
+  initSpreadsheet() {
+    const container = document.getElementById('spreadsheetContainer');
+    if (!container) return;
+
+    // Destroy existing instance
+    if (this.spreadsheetInstance) {
+      this.spreadsheetInstance.destroy();
+    }
+
+    // Prepare data for spreadsheet
+    const data = this.projects.map((project) => {
+      const assigneeNames = (project.assignees || [])
+        .map((id) => this.team.find((m) => m.id === id)?.name || '')
+        .filter(Boolean)
+        .join(', ');
+      
+      return [
+        project.id,           // 0: Hidden ID
+        project.name,         // 1: Name
+        project.type,         // 2: Type
+        project.status,       // 3: Status
+        assigneeNames,        // 4: Assignees
+        project.startDate,    // 5: Start Date
+        project.endDate,      // 6: End Date
+        project.mandayEstimate || '', // 7: Man-days
+        project.confidence,   // 8: Confidence
+        project.iceImpact || 5,    // 9: Impact
+        project.iceConfidence || 5, // 10: Confidence (ICE)
+        project.iceEffort || 5,    // 11: Effort
+        project.description || '', // 12: Description
+      ];
+    });
+
+    // Build assignee options
+    const assigneeOptions = this.team.map((m) => m.name);
+
+    // Build type options
+    const taskTypes = this.getTaskTypes();
+    const typeOptions = taskTypes.map((t) => t.id);
+
+    // Column definitions
+    const columns = [
+      { type: 'hidden', title: 'ID', width: 50, readOnly: true },
+      { type: 'text', title: 'Project Name', width: 200 },
+      { type: 'dropdown', title: 'Type', width: 120, source: typeOptions },
+      { type: 'dropdown', title: 'Status', width: 110, source: ['planned', 'in-progress', 'at-risk', 'blocked', 'completed'] },
+      { type: 'dropdown', title: 'Assignees', width: 150, source: assigneeOptions, autocomplete: true, multiple: true },
+      { type: 'calendar', title: 'Start Date', width: 110, options: { format: 'YYYY-MM-DD' } },
+      { type: 'calendar', title: 'End Date', width: 110, options: { format: 'YYYY-MM-DD' } },
+      { type: 'numeric', title: 'Man-days', width: 80 },
+      { type: 'dropdown', title: 'Confidence', width: 100, source: ['high', 'medium', 'low'] },
+      { type: 'numeric', title: 'Impact', width: 70 },
+      { type: 'numeric', title: 'ICE Conf.', width: 70 },
+      { type: 'numeric', title: 'Effort', width: 70 },
+      { type: 'text', title: 'Description', width: 250 },
+    ];
+
+    // Initialize jspreadsheet
+    this.spreadsheetInstance = jspreadsheet(container, {
+      data: data.length > 0 ? data : [['', '', 'feature', 'planned', '', '', '', '', 'medium', 5, 5, 5, '']],
+      columns: columns,
+      minDimensions: [13, 1],
+      tableOverflow: true,
+      tableWidth: '100%',
+      tableHeight: '100%',
+      columnSorting: true,
+      columnDrag: true,
+      columnResize: true,
+      rowResize: true,
+      search: true,
+      pagination: 50,
+      paginationOptions: [10, 25, 50, 100],
+      allowInsertRow: true,
+      allowDeleteRow: true,
+      allowInsertColumn: false,
+      allowDeleteColumn: false,
+      contextMenu: (obj, x, y, e) => {
+        const items = [];
+        if (y !== null) {
+          items.push({
+            title: 'Insert row above',
+            onclick: () => obj.insertRow(1, y, true)
+          });
+          items.push({
+            title: 'Insert row below',
+            onclick: () => obj.insertRow(1, y, false)
+          });
+          items.push({
+            title: 'Delete row',
+            onclick: () => obj.deleteRow(y)
+          });
+        }
+        items.push({
+          title: 'Copy',
+          shortcut: 'Ctrl+C',
+          onclick: () => obj.copy()
+        });
+        items.push({
+          title: 'Paste',
+          shortcut: 'Ctrl+V',
+          onclick: () => obj.paste()
+        });
+        return items;
+      }
+    });
+  }
+
+  addSpreadsheetRow() {
+    if (!this.spreadsheetInstance) return;
+    const newId = Date.now();
+    this.spreadsheetInstance.insertRow([newId, '', 'feature', 'planned', '', '', '', '', 'medium', 5, 5, 5, '']);
+  }
+
+  deleteSelectedSpreadsheetRows() {
+    if (!this.spreadsheetInstance) return;
+    const selected = this.spreadsheetInstance.getSelectedRows();
+    if (selected && selected.length > 0) {
+      // Delete from bottom to top to maintain indices
+      const sortedIndices = [...selected].sort((a, b) => b - a);
+      sortedIndices.forEach((index) => {
+        this.spreadsheetInstance.deleteRow(index);
+      });
+      this.showToast(`Deleted ${selected.length} row(s)`, 'success');
+    } else {
+      this.showToast('Select rows to delete first', 'info');
+    }
+  }
+
+  saveSpreadsheetChanges() {
+    if (!this.spreadsheetInstance) return;
+
+    const data = this.spreadsheetInstance.getData();
+    const updatedProjects = [];
+    const errors = [];
+
+    data.forEach((row, index) => {
+      const [
+        id, name, type, status, assigneeStr, startDate, endDate, 
+        mandayEstimate, confidence, iceImpact, iceConfidence, iceEffort, description
+      ] = row;
+
+      // Skip empty rows
+      if (!name || name.trim() === '') return;
+
+      // Parse assignees back to IDs
+      const assigneeNames = assigneeStr ? assigneeStr.split(',').map((s) => s.trim()).filter(Boolean) : [];
+      const assignees = assigneeNames
+        .map((name) => this.team.find((m) => m.name === name)?.id)
+        .filter(Boolean);
+
+      // Validate man-days
+      const mandays = parseInt(mandayEstimate, 10);
+      if (mandayEstimate && (isNaN(mandays) || mandays < 1)) {
+        errors.push(`Row ${index + 1}: Invalid man-days estimate`);
+      }
+
+      // Build project object
+      const existingProject = this.projects.find((p) => p.id === id);
+      const projectData = {
+        ...(existingProject || {}),
+        id: id || Date.now() + index,
+        name: name.trim(),
+        type: type || 'feature',
+        status: status || 'planned',
+        assignees,
+        startDate: startDate || '',
+        endDate: endDate || '',
+        mandayEstimate: mandays || existingProject?.mandayEstimate || 5,
+        confidence: confidence || 'medium',
+        iceImpact: parseInt(iceImpact, 10) || 5,
+        iceConfidence: parseInt(iceConfidence, 10) || 5,
+        iceEffort: parseInt(iceEffort, 10) || 5,
+        description: description || '',
+      };
+
+      // Calculate ICE score
+      projectData.iceScore = (projectData.iceImpact * projectData.iceConfidence) / projectData.iceEffort;
+
+      updatedProjects.push(projectData);
+    });
+
+    if (errors.length > 0) {
+      this.showToast(`Validation errors:\n${errors.join('\n')}`, 'error');
+      return;
+    }
+
+    // Save changes
+    this.pushUndoState('spreadsheet edit');
+    this.projects = updatedProjects;
+    Storage.saveProjects(this.projects);
+    this.updateCapacityDisplay();
+    this.refreshGantt();
+    this.renderBacklog();
+    this.closeSpreadsheetModal();
+    this.showToast(`Saved ${updatedProjects.length} project(s)`, 'success');
   }
 
   getCompanyHolidayDatesInRange(startDate, endDate) {

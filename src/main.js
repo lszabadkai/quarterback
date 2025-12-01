@@ -52,6 +52,7 @@ function getAppTemplate() {
       <div class="toolbar">
         <div class="toolbar-left">
           <button id="addProjectBtn" class="btn btn-primary">+ Add Project</button>
+          <button id="spreadsheetBtn" class="btn btn-secondary" title="Edit all projects in spreadsheet view">📋 Table View</button>
           <div class="view-controls">
             <label for="viewTypeSelect">View:</label>
             <select id="viewTypeSelect" aria-label="Select view type">
@@ -485,6 +486,27 @@ function getAppTemplate() {
           </div>
           <div class="modal-footer">
             <button class="btn btn-primary" id="saveTypePreferencesBtn" type="button">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal" id="spreadsheetModal" aria-hidden="true" role="dialog">
+        <div class="modal-content modal-fullscreen">
+          <div class="modal-header">
+            <h2>📋 Project Table View</h2>
+            <div class="spreadsheet-toolbar">
+              <button class="btn btn-small btn-primary" id="addRowBtn" type="button">+ Add Row</button>
+              <button class="btn btn-small btn-secondary" id="deleteSelectedRowsBtn" type="button">🗑️ Delete Selected</button>
+              <span class="spreadsheet-hint">Edit cells directly • Ctrl+C/V to copy/paste • Changes save automatically</span>
+            </div>
+            <button class="modal-close" id="closeSpreadsheetModal" aria-label="Close spreadsheet modal">&times;</button>
+          </div>
+          <div class="modal-body spreadsheet-body">
+            <div id="spreadsheetContainer"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelSpreadsheetBtn">Cancel</button>
+            <button class="btn btn-primary" id="saveSpreadsheetBtn">Save Changes</button>
           </div>
         </div>
       </div>

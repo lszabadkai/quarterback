@@ -2403,3 +2403,195 @@ select[multiple] {
     height: auto;
   }
 }
+
+/* ========================================
+   Spreadsheet Modal Styles
+   ======================================== */
+
+.modal-fullscreen {
+  width: 95vw;
+  max-width: 1600px;
+  height: 90vh;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-fullscreen .modal-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.modal-fullscreen .modal-header h2 {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.spreadsheet-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.spreadsheet-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.spreadsheet-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  min-height: 0;
+}
+
+#spreadsheetContainer {
+  height: 100%;
+  width: 100%;
+}
+
+.modal-fullscreen .modal-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+/* jspreadsheet theme overrides to match app themes */
+.jexcel_container {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.jexcel {
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.jexcel tbody td {
+  background: var(--surface);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.jexcel tbody td:hover {
+  background: var(--surface-hover);
+}
+
+.jexcel tbody td.selected,
+.jexcel tbody td.highlight {
+  background: var(--primary-color);
+  color: white;
+}
+
+.jexcel thead td {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+  font-weight: 600;
+}
+
+.jexcel > thead > tr > td {
+  background: var(--surface-elevated);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.jexcel > tbody > tr > td:first-child {
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.jexcel_content {
+  background: var(--surface);
+}
+
+.jexcel_dropdown,
+.jdropdown-container {
+  background: var(--surface-elevated);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-lg);
+}
+
+.jdropdown-item {
+  color: var(--text-primary);
+}
+
+.jdropdown-item:hover,
+.jdropdown-item.jdropdown-selected {
+  background: var(--primary-color);
+  color: white;
+}
+
+.jexcel_editor,
+.jexcel textarea {
+  background: var(--surface);
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+}
+
+.jexcel_pagination {
+  background: var(--surface-elevated);
+  border-color: var(--border-color);
+}
+
+.jexcel_pagination a {
+  color: var(--text-primary);
+}
+
+.jexcel_pagination a.jexcel_page_selected {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Calendar picker theming */
+.jcalendar {
+  background: var(--surface-elevated);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-lg);
+}
+
+.jcalendar-weekday,
+.jcalendar-header {
+  color: var(--text-primary);
+}
+
+.jcalendar-day {
+  color: var(--text-primary);
+}
+
+.jcalendar-day:hover {
+  background: var(--surface-hover);
+}
+
+.jcalendar-selected {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Context menu theming */
+.jexcel_contextmenu,
+.jcontextmenu {
+  background: var(--surface-elevated);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-lg);
+}
+
+.jexcel_contextmenu > div:hover,
+.jcontextmenu > div:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Status badges in spreadsheet */
+.spreadsheet-status-planned { color: var(--text-secondary); }
+.spreadsheet-status-in-progress { color: #22d3ee; }
+.spreadsheet-status-at-risk { color: #fcd34d; }
+.spreadsheet-status-blocked { color: #fb7185; }
+.spreadsheet-status-completed { color: #4ade80; }
