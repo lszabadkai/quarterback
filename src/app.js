@@ -206,7 +206,7 @@ class QuarterBackApp {
     document.getElementById('capacityBtn')?.addEventListener('click', () => this.openCapacityModal());
     document.getElementById('exportBtn')?.addEventListener('click', () => this.openExportModal());
     document.getElementById('shareBtn')?.addEventListener('click', () => this.shareView());
-    document.getElementById('themeToggleBtn')?.addEventListener('click', () => this.toggleTheme());
+    document.getElementById('themeSelect')?.addEventListener('change', (event) => this.changeTheme(event.target.value));
     document.getElementById('addProjectBtn')?.addEventListener('click', () => this.openProjectModal());
     document.getElementById('setupCapacityBtn')?.addEventListener('click', () => this.openCapacityModal());
     document.getElementById('addFirstProjectBtn')?.addEventListener('click', () => this.openProjectModal());
@@ -285,6 +285,10 @@ class QuarterBackApp {
     document.getElementById('savePtoBtn')?.addEventListener('click', () => this.closePtoModal());
     document.getElementById('addPtoDateBtn')?.addEventListener('click', () => this.addPtoDate());
 
+    // Type Preferences modal
+    document.getElementById('closeTypePreferencesModal')?.addEventListener('click', () => this.closeTypePreferencesModal());
+    document.getElementById('saveTypePreferencesBtn')?.addEventListener('click', () => this.saveTypePreferences());
+
     // Company Holidays modal
     document.getElementById('manageHolidaysBtn')?.addEventListener('click', () => this.openHolidaysModal());
     document.getElementById('closeHolidaysModal')?.addEventListener('click', () => this.closeHolidaysModal());
@@ -325,28 +329,59 @@ class QuarterBackApp {
     document.getElementById('capacityModal')?.classList.remove('active');
   }
 
+  getAvailableThemes() {
+    return [
+      { id: 'light', name: 'Light (Default)', isDark: false },
+      { id: 'github-light', name: 'GitHub Light', isDark: false },
+      { id: 'solarized-light', name: 'Solarized Light', isDark: false },
+      { id: 'quiet-light', name: 'Quiet Light', isDark: false },
+      { id: 'monokai', name: 'Monokai', isDark: true },
+      { id: 'one-dark-pro', name: 'One Dark Pro', isDark: true },
+      { id: 'dracula', name: 'Dracula', isDark: true },
+      { id: 'github-dark', name: 'GitHub Dark', isDark: true },
+      { id: 'nord', name: 'Nord', isDark: true },
+      { id: 'solarized-dark', name: 'Solarized Dark', isDark: true },
+      { id: 'night-owl', name: 'Night Owl', isDark: true },
+    ];
+  }
+
+  isCurrentThemeDark() {
+    const themes = this.getAvailableThemes();
+    const currentTheme = themes.find(t => t.id === this.settings.theme);
+    return currentTheme?.isDark ?? false;
+  }
+
   applyTheme(theme) {
-    const safeTheme = theme === 'dark' ? 'dark' : 'light';
-    this.settings.theme = safeTheme;
+    const themes = this.getAvailableThemes();
+    const themeInfo = themes.find(t => t.id === theme) || themes[0];
+    this.settings.theme = themeInfo.id;
+    
     const body = document.body;
     if (body) {
-      body.classList.toggle('theme-dark', safeTheme === 'dark');
+      // Remove all theme classes
+      themes.forEach(t => {
+        body.classList.remove(`theme-${t.id}`);
+      });
+      body.classList.remove('theme-dark'); // Legacy support
+      
+      // Apply new theme class (light theme uses :root defaults, so no class needed)
+      if (themeInfo.id !== 'light') {
+        body.classList.add(`theme-${themeInfo.id}`);
+      }
     }
-    const toggleBtn = document.getElementById('themeToggleBtn');
-    if (toggleBtn) {
-      toggleBtn.setAttribute('aria-pressed', safeTheme === 'dark' ? 'true' : 'false');
-      toggleBtn.textContent = safeTheme === 'dark' ? '☀️ Light Theme' : '🌙 Dark Theme';
+    
+    const themeSelect = document.getElementById('themeSelect');
+    if (themeSelect) {
+      themeSelect.value = themeInfo.id;
     }
   }
 
-  toggleTheme() {
-    const nextTheme = this.settings.theme === 'dark' ? 'light' : 'dark';
-    this.applyTheme(nextTheme);
+  changeTheme(themeId) {
+    const themes = this.getAvailableThemes();
+    const themeInfo = themes.find(t => t.id === themeId) || themes[0];
+    this.applyTheme(themeInfo.id);
     Storage.saveSettings(this.settings);
-    this.showToast(
-      nextTheme === 'dark' ? 'Monokai dark theme enabled' : 'Light theme enabled',
-      'success',
-    );
+    this.showToast(`${themeInfo.name} theme applied`, 'success');
   }
 
   renderTeamMembersList() {
@@ -381,6 +416,7 @@ class QuarterBackApp {
           : '<option value="" disabled>No roles configured</option>';
 
         const ptoDatesCount = Array.isArray(member.ptoDates) ? member.ptoDates.length : 0;
+        const prefsCount = member.typePreferences ? Object.keys(member.typePreferences).filter(k => member.typePreferences[k] !== 'neutral').length : 0;
         return `
           <div class="team-member-item" data-id="${member.id}">
             <div class="team-member-fields">
@@ -392,6 +428,7 @@ class QuarterBackApp {
                 ${roleOptions}
               </select>
             </div>
+            <button type="button" class="btn btn-small btn-secondary type-prefs-btn" data-id="${member.id}" title="Task type preferences">🎯 ${prefsCount > 0 ? `(${prefsCount})` : ''}</button>
             <button type="button" class="btn btn-small btn-secondary pto-btn" data-id="${member.id}" title="Manage PTO dates">📅 ${ptoDatesCount > 0 ? `(${ptoDatesCount})` : ''}</button>
             <button type="button" class="btn btn-small btn-secondary remove-member-btn" data-id="${member.id}">Remove</button>
           </div>
@@ -407,6 +444,10 @@ class QuarterBackApp {
 
     list.querySelectorAll('.pto-btn').forEach((button) => {
       button.addEventListener('click', () => this.openPtoModal(parseInt(button.dataset.id, 10)));
+    });
+
+    list.querySelectorAll('.type-prefs-btn').forEach((button) => {
+      button.addEventListener('click', () => this.openTypePreferencesModal(parseInt(button.dataset.id, 10)));
     });
 
     list.querySelectorAll('input').forEach((input) => {
@@ -796,13 +837,19 @@ class QuarterBackApp {
       // Focus penalty: prefer full-time ICs over managers with split focus
       const focusPenalty = 1 - entry.focusPercent;
       
+      // Type preference score: how much does this member want this type of work?
+      // Returns: loved=-0.2, preferred=-0.1, neutral=0, avoided=0.15, disliked=0.3
+      const typePreferenceScore = this.getTypePreferenceScore(entry.memberId, project.type);
+      
       // Composite score (lower is better):
-      // - 35% weight to availability (prefer sooner start)
-      // - 45% weight to load balance (prefer less loaded members)
-      // - 20% weight to focus (prefer dedicated team members)
-      entry.score = (normalizedAvailability * 0.35) + 
-                   (capacityUtilization * 0.45) + 
-                   (focusPenalty * 0.20);
+      // - 30% weight to availability (prefer sooner start)
+      // - 35% weight to load balance (prefer less loaded members)
+      // - 15% weight to focus (prefer dedicated team members)
+      // - 20% weight to type preference (prefer members who enjoy this work)
+      entry.score = (normalizedAvailability * 0.30) + 
+                   (capacityUtilization * 0.35) + 
+                   (focusPenalty * 0.15) +
+                   (typePreferenceScore * 0.20);
       
       // Heavy penalty if they can't fit the project
       if (!entry.canFit) {
@@ -1160,19 +1207,48 @@ class QuarterBackApp {
     return slug || fallback;
   }
 
+  getTaskTypes() {
+    return [
+      { id: 'feature', name: 'Feature', icon: '✨', color: '#f92672' },
+      { id: 'bug-fix', name: 'Bug Fix', icon: '🐛', color: '#fd971f' },
+      { id: 'tech-debt', name: 'Tech Debt', icon: '🔧', color: '#ae81ff' },
+      { id: 'infrastructure', name: 'Infrastructure', icon: '🏗️', color: '#66d9ef' },
+      { id: 'research', name: 'Research', icon: '🔬', color: '#a6e22e' },
+      { id: 'security', name: 'Security', icon: '🔒', color: '#ff5555' },
+      { id: 'performance', name: 'Performance', icon: '⚡', color: '#ffb86c' },
+      { id: 'documentation', name: 'Documentation', icon: '📝', color: '#8be9fd' },
+      { id: 'testing', name: 'Testing', icon: '🧪', color: '#50fa7b' },
+      { id: 'design', name: 'Design', icon: '🎨', color: '#ff79c6' },
+      { id: 'support', name: 'Support', icon: '🎧', color: '#e6db74' },
+      { id: 'ops', name: 'Operations', icon: '⚙️', color: '#75715e' },
+      { id: 'maintenance', name: 'Maintenance', icon: '🛠️', color: '#5c5952' },
+      { id: 'integration', name: 'Integration', icon: '🔗', color: '#bd93f9' },
+      { id: 'migration', name: 'Migration', icon: '📦', color: '#6272a4' },
+    ];
+  }
+
+  getTypePreferenceScore(memberId, projectType) {
+    const member = this.team.find(m => m.id === memberId);
+    if (!member || !member.typePreferences) return 0;
+    
+    const pref = member.typePreferences[projectType];
+    // Returns normalized score where negative = good, positive = bad (for scoring system)
+    // loved = -1 (strong preference), preferred = -0.5, neutral = 0, avoided = 0.75, disliked = 1.5
+    switch (pref) {
+      case 'loved': return -1;
+      case 'preferred': return -0.5;
+      case 'avoided': return 0.75;
+      case 'disliked': return 1.5;
+      default: return 0;
+    }
+  }
+
   getThemeLabel(theme) {
-    const dictionary = {
-      feature: 'Feature',
-      infrastructure: 'Infrastructure',
-      'bug-fix': 'Bug Fix',
-      'tech-debt': 'Tech Debt',
-      research: 'Research',
-      ops: 'Operations',
-      operations: 'Operations',
-      maintenance: 'Maintenance',
-      support: 'Support',
-    };
-    if (dictionary[theme]) return dictionary[theme];
+    const taskTypes = this.getTaskTypes();
+    const found = taskTypes.find(t => t.id === theme);
+    if (found) return found.name;
+    
+    // Fallback for custom types
     return theme
       .split('-')
       .filter(Boolean)
@@ -1440,6 +1516,86 @@ class QuarterBackApp {
     Storage.saveTeam(this.team);
     this.renderPtoDates(member.ptoDates);
     this.renderTeamMembersList();
+  }
+
+  // Type Preferences Management
+  openTypePreferencesModal(memberId) {
+    const member = this.team.find((m) => m.id === memberId);
+    if (!member) {
+      this.showToast('Team member not found', 'error');
+      return;
+    }
+    this.currentTypePrefsMemberId = memberId;
+    const modal = document.getElementById('typePreferencesModal');
+    const title = document.getElementById('typePreferencesModalTitle');
+    if (title) title.textContent = `🎯 Task Preferences for ${member.name}`;
+    this.renderTypePreferences(member.typePreferences || {});
+    modal?.classList.add('active');
+  }
+
+  closeTypePreferencesModal() {
+    document.getElementById('typePreferencesModal')?.classList.remove('active');
+    this.currentTypePrefsMemberId = null;
+  }
+
+  renderTypePreferences(preferences) {
+    const container = document.getElementById('typePreferencesList');
+    if (!container) return;
+    
+    const taskTypes = this.getTaskTypes();
+    const preferenceOptions = [
+      { value: 'loved', label: '❤️ Love it', class: 'preference-level-loved' },
+      { value: 'preferred', label: '👍 Prefer', class: 'preference-level-preferred' },
+      { value: 'neutral', label: '😐 Neutral', class: 'preference-level-neutral' },
+      { value: 'avoided', label: '👎 Avoid', class: 'preference-level-avoided' },
+      { value: 'disliked', label: '❌ Dislike', class: 'preference-level-disliked' }
+    ];
+    
+    container.innerHTML = taskTypes.map((type) => {
+      const currentPref = preferences[type.value] || 'neutral';
+      const optionsHtml = preferenceOptions.map((opt) => 
+        `<option value="${opt.value}" ${currentPref === opt.value ? 'selected' : ''}>${opt.label}</option>`
+      ).join('');
+      
+      return `
+        <div class="type-preference-item" data-type="${type.value}">
+          <span class="type-preference-icon">${type.icon}</span>
+          <span class="type-preference-label">${type.label}</span>
+          <select class="type-preference-select" data-type="${type.value}">
+            ${optionsHtml}
+          </select>
+        </div>
+      `;
+    }).join('');
+    
+    container.querySelectorAll('.type-preference-select').forEach((select) => {
+      select.addEventListener('change', (e) => {
+        this.updateTypePreference(e.target.dataset.type, e.target.value);
+      });
+    });
+  }
+
+  updateTypePreference(typeValue, preference) {
+    const member = this.team.find((m) => m.id === this.currentTypePrefsMemberId);
+    if (!member) return;
+    
+    if (!member.typePreferences) {
+      member.typePreferences = {};
+    }
+    
+    if (preference === 'neutral') {
+      delete member.typePreferences[typeValue];
+    } else {
+      member.typePreferences[typeValue] = preference;
+    }
+    
+    Storage.saveTeam(this.team);
+  }
+
+  saveTypePreferences() {
+    this.closeTypePreferencesModal();
+    this.renderTeamMembersList();
+    this.showToast('Preferences saved', 'success');
   }
 
   // Company Holidays Management
@@ -2218,70 +2374,128 @@ class QuarterBackApp {
       el.style.top = 'auto';
     });
     
-    // Create export wrapper with warnings
+    // Create export wrapper with warnings and/or unallocated tasks
     let exportWrapper = null;
     const conflicts = this.detectConflicts();
+    const backlogProjects = this.getBacklogProjects();
     const baseTarget = ganttTable || ganttContainer || target;
+    const isDark = this.isCurrentThemeDark();
     
-    if (conflicts.length > 0) {
-      // Create a wrapper div to hold both the gantt and warnings
+    if (conflicts.length > 0 || backlogProjects.length > 0) {
+      // Create a wrapper div to hold the gantt, warnings, and backlog
       exportWrapper = document.createElement('div');
       exportWrapper.className = 'export-wrapper';
       exportWrapper.style.cssText = `
         display: flex;
         flex-direction: column;
-        background: ${this.settings.theme === 'dark' ? '#16181d' : '#ffffff'};
+        background: ${isDark ? '#16181d' : '#ffffff'};
         padding: 16px;
         gap: 16px;
       `;
       
-      // Create warnings section
-      const warningsSection = document.createElement('div');
-      warningsSection.className = 'export-warnings';
-      warningsSection.style.cssText = `
-        background: ${this.settings.theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)'};
-        border: 1px solid ${this.settings.theme === 'dark' ? '#dc2626' : '#ef4444'};
-        border-radius: 8px;
-        padding: 12px 16px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      `;
-      
-      const warningsTitle = document.createElement('div');
-      warningsTitle.style.cssText = `
-        font-weight: 600;
-        font-size: 14px;
-        color: ${this.settings.theme === 'dark' ? '#fca5a5' : '#dc2626'};
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      `;
-      warningsTitle.innerHTML = `⚠️ ${conflicts.length} Warning${conflicts.length > 1 ? 's' : ''}`;
-      warningsSection.appendChild(warningsTitle);
-      
-      const warningsList = document.createElement('ul');
-      warningsList.style.cssText = `
-        margin: 0;
-        padding-left: 20px;
-        font-size: 13px;
-        color: ${this.settings.theme === 'dark' ? '#fecaca' : '#b91c1c'};
-        line-height: 1.5;
-      `;
-      
-      conflicts.forEach((conflict) => {
-        const li = document.createElement('li');
-        li.textContent = conflict.message;
-        li.style.marginBottom = '4px';
-        warningsList.appendChild(li);
-      });
-      warningsSection.appendChild(warningsList);
+      // Create warnings section if there are conflicts
+      if (conflicts.length > 0) {
+        const warningsSection = document.createElement('div');
+        warningsSection.className = 'export-warnings';
+        warningsSection.style.cssText = `
+          background: ${isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)'};
+          border: 1px solid ${isDark ? '#dc2626' : '#ef4444'};
+          border-radius: 8px;
+          padding: 12px 16px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+        
+        const warningsTitle = document.createElement('div');
+        warningsTitle.style.cssText = `
+          font-weight: 600;
+          font-size: 14px;
+          color: ${isDark ? '#fca5a5' : '#dc2626'};
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        `;
+        warningsTitle.innerHTML = `⚠️ ${conflicts.length} Warning${conflicts.length > 1 ? 's' : ''}`;
+        warningsSection.appendChild(warningsTitle);
+        
+        const warningsList = document.createElement('ul');
+        warningsList.style.cssText = `
+          margin: 0;
+          padding-left: 20px;
+          font-size: 13px;
+          color: ${isDark ? '#fecaca' : '#b91c1c'};
+          line-height: 1.5;
+        `;
+        
+        conflicts.forEach((conflict) => {
+          const li = document.createElement('li');
+          li.textContent = conflict.message;
+          li.style.marginBottom = '4px';
+          warningsList.appendChild(li);
+        });
+        warningsSection.appendChild(warningsList);
+        exportWrapper.appendChild(warningsSection);
+      }
       
       // Clone the gantt table for the export
       const ganttClone = baseTarget.cloneNode(true);
       ganttClone.style.width = `${baseTarget.scrollWidth}px`;
-      
-      exportWrapper.appendChild(warningsSection);
       exportWrapper.appendChild(ganttClone);
+      
+      // Create unallocated tasks section if there are backlog items
+      if (backlogProjects.length > 0) {
+        const backlogSection = document.createElement('div');
+        backlogSection.className = 'export-backlog';
+        backlogSection.style.cssText = `
+          background: ${isDark ? 'rgba(251, 191, 36, 0.15)' : 'rgba(251, 191, 36, 0.1)'};
+          border: 1px solid ${isDark ? '#d97706' : '#f59e0b'};
+          border-radius: 8px;
+          padding: 12px 16px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+        
+        const backlogTitle = document.createElement('div');
+        backlogTitle.style.cssText = `
+          font-weight: 600;
+          font-size: 14px;
+          color: ${isDark ? '#fcd34d' : '#b45309'};
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        `;
+        backlogTitle.innerHTML = `📋 ${backlogProjects.length} Unallocated Task${backlogProjects.length > 1 ? 's' : ''} (Backlog)`;
+        backlogSection.appendChild(backlogTitle);
+        
+        const backlogList = document.createElement('div');
+        backlogList.style.cssText = `
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          font-size: 13px;
+          color: ${isDark ? '#fef3c7' : '#92400e'};
+        `;
+        
+        backlogProjects.forEach((project) => {
+          const item = document.createElement('div');
+          const reasons = [];
+          if (!this.hasAssignee(project)) reasons.push('No owner');
+          if (!this.isProjectScheduled(project)) reasons.push('No dates');
+          const mandayText = project.mandayEstimate ? ` • ${project.mandayEstimate}d` : '';
+          item.style.cssText = `
+            background: ${isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)'};
+            padding: 6px 10px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          `;
+          item.innerHTML = `<strong>${this.escapeHtml(project.name)}</strong> <span style="opacity: 0.7">(${reasons.join(', ')}${mandayText})</span>`;
+          backlogList.appendChild(item);
+        });
+        backlogSection.appendChild(backlogList);
+        exportWrapper.appendChild(backlogSection);
+      }
       
       document.body.appendChild(exportWrapper);
     }
@@ -2290,7 +2504,7 @@ class QuarterBackApp {
     
     try {
       const canvas = await html2canvas(exportTarget, {
-        backgroundColor: this.settings.theme === 'dark' ? '#16181d' : '#ffffff',
+        backgroundColor: isDark ? '#16181d' : '#ffffff',
         scale: this.getExportScale(),
         useCORS: true,
         logging: false,
@@ -2382,6 +2596,7 @@ class QuarterBackApp {
   exportCSV() {
     const headers = [
       'Project Name',
+      'Allocation Status',
       'Assignees',
       'Start Date',
       'End Date',
@@ -2401,8 +2616,11 @@ class QuarterBackApp {
         .map((id) => this.team.find((member) => member.id === id)?.name || '')
         .join('; ');
       const storyPoints = this.getProjectStoryPoints(project);
+      const isAllocated = this.hasAssignee(project) && this.isProjectScheduled(project);
+      const allocationStatus = isAllocated ? 'Allocated' : 'Unallocated (Backlog)';
       return [
         project.name,
+        allocationStatus,
         assigneeNames,
         project.startDate,
         project.endDate,
@@ -2907,6 +3125,9 @@ class QuarterBackApp {
     GanttChart.update(this.getVisibleProjects(), this.team, {
       quarter: this.settings.currentQuarter,
       viewType: this.settings.viewType,
+      roles: this.roles,
+      regions: this.regions,
+      companyHolidays: this.companyHolidays,
     });
     this.renderBacklog();
     this.renderConflictIndicators();

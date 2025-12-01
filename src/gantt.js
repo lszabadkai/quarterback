@@ -7,6 +7,9 @@ export const GanttChart = {
   weeks: [],
   projects: [],
   team: [],
+  roles: [],
+  regions: [],
+  companyHolidays: [],
   currentQuarter: '',
   viewType: 'quarter',
   quarterStart: null,
@@ -23,6 +26,12 @@ export const GanttChart = {
     this.team = team;
     let quarter = this.currentQuarter;
     let viewType = this.viewType || 'quarter';
+
+    if (viewOptions && typeof viewOptions === 'object') {
+      if (viewOptions.roles) this.roles = viewOptions.roles;
+      if (viewOptions.regions) this.regions = viewOptions.regions;
+      if (viewOptions.companyHolidays) this.companyHolidays = viewOptions.companyHolidays;
+    }
 
     if (typeof viewOptions === 'string' && viewOptions) {
       quarter = viewOptions;
@@ -197,14 +206,13 @@ export const GanttChart = {
   renderCapacityHeatmapRow() {
     if (!this.team.length || !this.weeks.length) return '';
     
-    const totalTeamCapacity = this.team.length * 5;
-    
     let html = '<div class="gantt-heatmap-row">';
     html += '<div class="gantt-heatmap-label">Capacity</div>';
     
     this.weeks.forEach((week) => {
+      const weekCapacity = this.calculateWeekCapacity(week.start, week.end);
       const weekLoad = this.calculateWeekLoad(week.start, week.end);
-      const utilization = totalTeamCapacity > 0 ? (weekLoad / totalTeamCapacity) * 100 : 0;
+      const utilization = weekCapacity > 0 ? (weekLoad / weekCapacity) * 100 : 0;
       
       let heatClass = 'heat-low';
       if (utilization > 100) {
@@ -216,7 +224,7 @@ export const GanttChart = {
       }
       
       const displayPercent = Math.round(utilization);
-      html += `<div class="gantt-heatmap-cell ${heatClass}" title="${displayPercent}% capacity used (${weekLoad}/${totalTeamCapacity} days)">
+      html += `<div class="gantt-heatmap-cell ${heatClass}" title="${displayPercent}% capacity used (${weekLoad.toFixed(1)}/${weekCapacity.toFixed(1)} days)">
         ${displayPercent}%
       </div>`;
     });
@@ -224,14 +232,125 @@ export const GanttChart = {
     return html;
   },
 
+  // Calculate available team capacity for a given week
+  // Helper to format date as YYYY-MM-DD in local timezone
+  formatDateLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
+  calculateWeekCapacity(weekStart, weekEnd) {
+    const roleLookup = new Map((this.roles || []).map(r => [r.id, r]));
+    const companyHolidaySet = new Set(
+      (this.companyHolidays || []).map(h => h.date)
+    );
+    
+    let totalCapacity = 0;
+    
+    this.team.forEach((member) => {
+      // Get role focus percentage (default 100%)
+      const role = roleLookup.get(member.roleId);
+      const focusPercent = (role?.focus ?? 100) / 100;
+      
+      // Get member's PTO dates
+      const ptoDates = new Set(member.ptoDates || []);
+      
+      // Count working days in this week for this member
+      let workingDays = 0;
+      const cursor = new Date(weekStart);
+      const endDate = new Date(weekEnd);
+      
+      while (cursor <= endDate) {
+        const dayOfWeek = cursor.getDay();
+        const dateStr = this.formatDateLocal(cursor);
+        
+        // Skip weekends
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          // Skip company holidays
+          if (!companyHolidaySet.has(dateStr)) {
+            // Skip personal PTO
+            if (!ptoDates.has(dateStr)) {
+              workingDays += 1;
+            }
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      
+      // Apply focus percentage
+      totalCapacity += workingDays * focusPercent;
+    });
+    
+    return totalCapacity;
+  },
+
   renderTeamRow(member) {
-    const avatarStyle = member.color ? ` style="background:${member.color};"` : '';
+    // Calculate this person's utilization and capacity details
+    const capacityInfo = this.calculatePersonCapacityInfo(member);
+    const utilizationClass = this.getUtilizationClass(capacityInfo.utilizationPercent);
+    
+    // SVG circular progress ring with multiple segments
+    // Avatar is 36px, wrapper is 48px, so ring radius should be ~21 to wrap nicely
+    const radius = 21;
+    const circumference = 2 * Math.PI * radius;
+    
+    // Calculate ring segments:
+    // Ring shows: Utilized (green-red gradient) | Unused Available (bg) | Blocked (muted stripe)
+    // The ring is 100% of the circle, divided by:
+    // - Available capacity = focusPercent% of the ring
+    // - Blocked capacity = (100 - focusPercent)% of the ring
+    // Within available, we fill utilizationPercent
+    
+    const focusPercent = capacityInfo.focusPercent; // e.g., 50% if role is 50% IC
+    const blockedPercent = 100 - focusPercent; // e.g., 50% blocked for non-IC work
+    const utilizedOfTotal = (Math.min(capacityInfo.utilizationPercent, 100) / 100) * focusPercent;
+    
+    // stroke-dashoffset = circumference - (percent/100 * circumference)
+    // All segments start at top (-90deg rotation)
+    const utilizedDashoffset = circumference - (utilizedOfTotal / 100) * circumference;
+    const blockedDashoffset = circumference - (blockedPercent / 100) * circumference;
+    
+    // Blocked segment starts after the available capacity portion
+    const blockedRotation = -90 + (focusPercent / 100) * 360;
+    
+    // Tooltip info
+    const roleName = this.getRoleName(member.roleId);
+    const focusLabel = focusPercent < 100 ? `${focusPercent}% IC focus` : 'Full-time IC';
+    
     let html = `<div class="gantt-row" data-person-id="${member.id}">`;
     
-    // Name cell (first column)
+    // Name cell (first column) with circular progress avatar
     html += `<div class="gantt-name-cell">
-      <div class="person-avatar"${avatarStyle}>${member.avatar}</div>
-      <span class="person-name">${member.name}</span>
+      <div class="person-avatar-wrapper ${utilizationClass}">
+        <svg class="avatar-progress-ring" viewBox="0 0 48 48">
+          <!-- Full background ring (always visible as base) -->
+          <circle class="progress-ring-base" cx="24" cy="24" r="${radius}" />
+          <!-- Available capacity arc (shown in lighter color) -->
+          <circle class="progress-ring-bg" cx="24" cy="24" r="${radius}" 
+            stroke-dasharray="${circumference}" 
+            stroke-dashoffset="${circumference - (focusPercent / 100) * circumference}"
+            transform="rotate(-90 24 24)" />
+          <!-- Blocked capacity segment (non-IC work portion) -->
+          ${blockedPercent > 0 ? `<circle class="progress-ring-blocked" cx="24" cy="24" r="${radius}" 
+            stroke-dasharray="${circumference}" 
+            stroke-dashoffset="${blockedDashoffset}"
+            transform="rotate(${blockedRotation} 24 24)" />` : ''}
+          <!-- Utilized capacity segment (starts at top) -->
+          <circle class="progress-ring-fill ${utilizationClass}" cx="24" cy="24" r="${radius}" 
+            stroke-dasharray="${circumference}" 
+            stroke-dashoffset="${utilizedDashoffset}"
+            transform="rotate(-90 24 24)" />
+        </svg>
+        <div class="person-avatar">${member.avatar}</div>
+        <span class="person-name-tooltip">
+          <strong>${member.name}</strong><br>
+          <span class="tooltip-role">${roleName}</span><br>
+          <span class="tooltip-focus">${focusLabel}</span><br>
+          <span class="tooltip-percent ${utilizationClass}">${Math.round(capacityInfo.utilizationPercent)}% utilized</span>
+        </span>
+      </div>
     </div>`;
     
     // Timeline cells
@@ -245,37 +364,236 @@ export const GanttChart = {
     return html;
   },
 
-  calculateWeekLoad(weekStart, weekEnd) {
-    let totalDays = 0;
-    const weekStartTime = weekStart.getTime();
-    const weekEndTime = weekEnd.getTime();
+  // Get role name by ID
+  getRoleName(roleId) {
+    const role = (this.roles || []).find(r => r.id === roleId);
+    return role?.name || 'Team Member';
+  },
+
+  // Calculate detailed capacity info for a team member
+  calculatePersonCapacityInfo(member) {
+    const roleLookup = new Map((this.roles || []).map(r => [r.id, r]));
+    const role = roleLookup.get(member.roleId);
+    const focusPercent = role?.focus ?? 100;
+    
+    if (!this.weeks.length) {
+      return { focusPercent, utilizationPercent: 0, capacity: 0, load: 0 };
+    }
+    
+    const rangeStart = this.weeks[0].start;
+    const rangeEnd = this.weeks[this.weeks.length - 1].end;
+    
+    const capacity = this.calculatePersonCapacity(member, rangeStart, rangeEnd);
+    const load = this.calculatePersonLoad(member.id, rangeStart, rangeEnd);
+    const utilizationPercent = capacity > 0 ? (load / capacity) * 100 : 0;
+    
+    return { focusPercent, utilizationPercent, capacity, load };
+  },
+
+  // Calculate utilization for a specific team member across visible weeks
+  calculatePersonUtilization(member) {
+    return this.calculatePersonCapacityInfo(member).utilizationPercent;
+  },
+
+  // Calculate capacity for a single person over a date range
+  calculatePersonCapacity(member, rangeStart, rangeEnd) {
+    const roleLookup = new Map((this.roles || []).map(r => [r.id, r]));
+    const companyHolidaySet = new Set(
+      (this.companyHolidays || []).map(h => h.date)
+    );
+    
+    const role = roleLookup.get(member.roleId);
+    const focusPercent = (role?.focus ?? 100) / 100;
+    const ptoDates = new Set(member.ptoDates || []);
+    
+    let workingDays = 0;
+    const cursor = new Date(rangeStart);
+    const endDate = new Date(rangeEnd);
+    
+    while (cursor <= endDate) {
+      const dayOfWeek = cursor.getDay();
+      const dateStr = this.formatDateLocal(cursor);
+      
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && 
+          !companyHolidaySet.has(dateStr) && 
+          !ptoDates.has(dateStr)) {
+        workingDays += 1;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    
+    return workingDays * focusPercent;
+  },
+
+  // Calculate load for a single person over a date range
+  calculatePersonLoad(memberId, rangeStart, rangeEnd) {
+    let totalLoad = 0;
+    const companyHolidaySet = new Set(
+      (this.companyHolidays || []).map(h => h.date)
+    );
+    const memberLookup = new Map(this.team.map(m => [m.id, m]));
     
     this.projects.forEach((project) => {
       if (!project.startDate || !project.endDate) return;
       
-      const projStart = new Date(project.startDate).getTime();
-      const projEnd = new Date(project.endDate).getTime();
+      const assignees = Array.isArray(project.assignees) ? project.assignees : [];
+      if (!assignees.includes(memberId) || !project.mandayEstimate) return;
+      
+      const projStart = new Date(project.startDate);
+      const projEnd = new Date(project.endDate);
+      const rangeStartDate = new Date(rangeStart);
+      const rangeEndDate = new Date(rangeEnd);
+      
+      // Check if project overlaps with range
+      if (projEnd < rangeStartDate || projStart > rangeEndDate) return;
+      
+      // Calculate working days for this project (raw days, not focus-adjusted)
+      // Man-days are split equally among assignees, then distributed over project duration
+      const numAssignees = assignees.length;
+      const mandaysPerAssignee = project.mandayEstimate / numAssignees;
+      
+      // Count project duration working days (excluding weekends & holidays only)
+      let projectWorkDays = 0;
+      const projCursor = new Date(projStart);
+      while (projCursor <= projEnd) {
+        const dayOfWeek = projCursor.getDay();
+        const dateStr = this.formatDateLocal(projCursor);
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !companyHolidaySet.has(dateStr)) {
+          projectWorkDays += 1;
+        }
+        projCursor.setDate(projCursor.getDate() + 1);
+      }
+      
+      if (projectWorkDays === 0) return;
+      
+      // Calculate overlap with visible range
+      const overlapStart = projStart > rangeStartDate ? projStart : rangeStartDate;
+      const overlapEnd = projEnd < rangeEndDate ? projEnd : rangeEndDate;
+      
+      // Get member's PTO in the overlap period
+      const member = memberLookup.get(memberId);
+      const ptoDates = new Set(member?.ptoDates || []);
+      
+      let overlapWorkDays = 0;
+      const overlapCursor = new Date(overlapStart);
+      while (overlapCursor <= overlapEnd) {
+        const dayOfWeek = overlapCursor.getDay();
+        const dateStr = this.formatDateLocal(overlapCursor);
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && 
+            !companyHolidaySet.has(dateStr) && 
+            !ptoDates.has(dateStr)) {
+          overlapWorkDays += 1;
+        }
+        overlapCursor.setDate(overlapCursor.getDate() + 1);
+      }
+      
+      // Load = (man-days for this assignee / project duration) × overlap days
+      // This gives us the man-days of work happening in the visible range
+      const dailyLoad = mandaysPerAssignee / projectWorkDays;
+      totalLoad += dailyLoad * overlapWorkDays;
+    });
+    
+    return totalLoad;
+  },
+
+  // Get CSS class based on utilization percentage
+  getUtilizationClass(utilization) {
+    if (utilization > 100) return 'util-over';
+    if (utilization > 85) return 'util-high';
+    if (utilization > 60) return 'util-medium';
+    if (utilization > 30) return 'util-low';
+    return 'util-idle';
+  },
+
+  calculateWeekLoad(weekStart, weekEnd) {
+    let totalDays = 0;
+    const companyHolidaySet = new Set(
+      (this.companyHolidays || []).map(h => h.date)
+    );
+    const memberLookup = new Map(this.team.map(m => [m.id, m]));
+    
+    this.projects.forEach((project) => {
+      if (!project.startDate || !project.endDate) return;
+      
+      const projStart = new Date(project.startDate);
+      const projEnd = new Date(project.endDate);
+      const weekStartDate = new Date(weekStart);
+      const weekEndDate = new Date(weekEnd);
       
       // Check if project overlaps with this week
-      if (projEnd < weekStartTime || projStart > weekEndTime) return;
+      if (projEnd < weekStartDate || projStart > weekEndDate) return;
       
-      // Calculate overlap days
-      const overlapStart = Math.max(projStart, weekStartTime);
-      const overlapEnd = Math.min(projEnd, weekEndTime);
-      const overlapDays = Math.ceil((overlapEnd - overlapStart) / DAY_MS) + 1;
+      const assignees = Array.isArray(project.assignees) ? project.assignees : [];
+      if (assignees.length === 0 || !project.mandayEstimate) return;
       
-      // Assign load proportionally based on project duration
-      const projectDuration = Math.ceil((projEnd - projStart) / DAY_MS) + 1;
-      const assigneeCount = Array.isArray(project.assignees) ? project.assignees.length : 0;
-      
-      if (assigneeCount > 0 && projectDuration > 0 && project.mandayEstimate) {
-        // Distribute man-days across project duration
-        const daysPerDay = project.mandayEstimate / projectDuration;
-        totalDays += daysPerDay * overlapDays;
+      // Count project duration working days (raw, without focus adjustment)
+      let projectWorkDays = 0;
+      const projCursor = new Date(projStart);
+      while (projCursor <= projEnd) {
+        const dayOfWeek = projCursor.getDay();
+        const dateStr = this.formatDateLocal(projCursor);
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !companyHolidaySet.has(dateStr)) {
+          projectWorkDays += 1;
+        }
+        projCursor.setDate(projCursor.getDate() + 1);
       }
+      
+      if (projectWorkDays === 0) return;
+      
+      // Calculate overlap with this week for each assignee
+      const overlapStart = projStart > weekStartDate ? projStart : weekStartDate;
+      const overlapEnd = projEnd < weekEndDate ? projEnd : weekEndDate;
+      
+      // For each assignee, count their working days in the overlap (excluding PTO)
+      let totalOverlapWorkDays = 0;
+      assignees.forEach(assigneeId => {
+        const member = memberLookup.get(assigneeId);
+        if (!member) return;
+        
+        const ptoDates = new Set(member.ptoDates || []);
+        let overlapDays = 0;
+        const overlapCursor = new Date(overlapStart);
+        while (overlapCursor <= overlapEnd) {
+          const dayOfWeek = overlapCursor.getDay();
+          const dateStr = this.formatDateLocal(overlapCursor);
+          if (dayOfWeek !== 0 && dayOfWeek !== 6 && 
+              !companyHolidaySet.has(dateStr) && 
+              !ptoDates.has(dateStr)) {
+            overlapDays += 1;
+          }
+          overlapCursor.setDate(overlapCursor.getDate() + 1);
+        }
+        totalOverlapWorkDays += overlapDays;
+      });
+      
+      // Load = (man-days / project duration) × overlap days
+      // This distributes the work proportionally across the project timeline
+      const dailyLoad = project.mandayEstimate / projectWorkDays;
+      const weekLoad = dailyLoad * (totalOverlapWorkDays / assignees.length);
+      totalDays += weekLoad;
     });
     
     return Math.round(totalDays * 10) / 10; // Round to 1 decimal
+  },
+
+  // Count working days between two dates (inclusive, excluding weekends)
+  countWorkingDays(start, end) {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (startDate > endDate) return 0;
+    
+    let count = 0;
+    const cursor = new Date(startDate);
+    
+    while (cursor <= endDate) {
+      const dayOfWeek = cursor.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count += 1;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    
+    return count;
   },
 
   formatDateRange(start, end) {
@@ -466,7 +784,13 @@ export const GanttChart = {
     bar.className = `project-bar ${project.status} confidence-${project.confidence} type-${themeClass}`;
     bar.dataset.projectId = project.id;
     bar.dataset.theme = themeClass;
-    bar.textContent = project.name;
+    
+    // Wrap text in a span for proper clipping
+    const textSpan = document.createElement('span');
+    textSpan.className = 'project-bar-text';
+    textSpan.textContent = project.name;
+    bar.appendChild(textSpan);
+    
     bar.style.left = `${position.left}%`;
     bar.style.width = `${position.width}%`;
     bar.style.top = '12px';

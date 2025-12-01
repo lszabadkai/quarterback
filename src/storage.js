@@ -104,7 +104,10 @@ export const Storage = {
     if (!data) return defaults;
     try {
       const parsed = JSON.parse(data);
-      return { ...defaults, ...parsed };
+      const settings = { ...defaults, ...parsed };
+      // Migrate legacy theme values
+      settings.theme = this.migrateTheme(settings.theme);
+      return settings;
     } catch (error) {
       console.warn('Unable to parse settings from storage', error);
       return defaults;
@@ -119,8 +122,15 @@ export const Storage = {
       viewType: 'quarter',
       groupBy: 'person',
       currentQuarter: this.getCurrentQuarter(),
-      theme: prefersDark ? 'dark' : 'light',
+      theme: prefersDark ? 'monokai' : 'light',
     };
+  },
+
+  // Migrate legacy theme values to new format
+  migrateTheme(theme) {
+    if (theme === 'dark') return 'monokai';
+    if (!theme) return 'light';
+    return theme;
   },
 
   getCurrentQuarter() {

@@ -32,7 +32,19 @@ function getAppTemplate() {
             <button id="exportBtn" class="btn btn-secondary" aria-label="Export data">📥 Export</button>
             <button id="importBtn" class="btn btn-secondary" aria-label="Import data">📤 Import</button>
             <button id="shareBtn" class="btn btn-secondary" aria-label="Share project">🔗 Share</button>
-            <button id="themeToggleBtn" class="btn btn-secondary" type="button" aria-pressed="false">🌙 Dark Theme</button>
+            <select id="themeSelect" class="theme-select" aria-label="Select color theme">
+              <option value="light">☀️ Light (Default)</option>
+              <option value="github-light">☀️ GitHub Light</option>
+              <option value="solarized-light">☀️ Solarized Light</option>
+              <option value="quiet-light">☀️ Quiet Light</option>
+              <option value="monokai">🌙 Monokai</option>
+              <option value="one-dark-pro">🌙 One Dark Pro</option>
+              <option value="dracula">🌙 Dracula</option>
+              <option value="github-dark">🌙 GitHub Dark</option>
+              <option value="nord">🌙 Nord</option>
+              <option value="solarized-dark">🌙 Solarized Dark</option>
+              <option value="night-owl">🌙 Night Owl</option>
+            </select>
           </div>
         </div>
       </header>
@@ -71,11 +83,21 @@ function getAppTemplate() {
             </select>
             <select id="filterType" class="filter-select" aria-label="Filter by type">
               <option value="">All Types</option>
-              <option value="feature">Feature</option>
-              <option value="bug-fix">Bug Fix</option>
-              <option value="tech-debt">Tech Debt</option>
-              <option value="infrastructure">Infrastructure</option>
-              <option value="research">Research</option>
+              <option value="feature">✨ Feature</option>
+              <option value="bug-fix">🐛 Bug Fix</option>
+              <option value="tech-debt">🔧 Tech Debt</option>
+              <option value="infrastructure">🏗️ Infrastructure</option>
+              <option value="research">🔬 Research</option>
+              <option value="security">🔒 Security</option>
+              <option value="performance">⚡ Performance</option>
+              <option value="documentation">📝 Documentation</option>
+              <option value="testing">🧪 Testing</option>
+              <option value="design">🎨 Design</option>
+              <option value="support">🎧 Support</option>
+              <option value="ops">⚙️ Operations</option>
+              <option value="maintenance">🛠️ Maintenance</option>
+              <option value="integration">🔗 Integration</option>
+              <option value="migration">📦 Migration</option>
             </select>
             <button id="clearFiltersBtn" class="btn btn-small btn-secondary" aria-label="Clear filters">Clear</button>
           </div>
@@ -292,10 +314,21 @@ function getAppTemplate() {
             <div class="form-group">
               <label for="projectType">Project Type:</label>
               <select id="projectType">
-                <option value="feature">Feature</option>
-                <option value="infrastructure">Infrastructure</option>
-                <option value="bug-fix">Bug Fix</option>
-                <option value="tech-debt">Tech Debt</option>
+                <option value="feature">✨ Feature</option>
+                <option value="bug-fix">🐛 Bug Fix</option>
+                <option value="tech-debt">🔧 Tech Debt</option>
+                <option value="infrastructure">🏗️ Infrastructure</option>
+                <option value="research">🔬 Research</option>
+                <option value="security">🔒 Security</option>
+                <option value="performance">⚡ Performance</option>
+                <option value="documentation">📝 Documentation</option>
+                <option value="testing">🧪 Testing</option>
+                <option value="design">🎨 Design</option>
+                <option value="support">🎧 Support</option>
+                <option value="ops">⚙️ Operations</option>
+                <option value="maintenance">🛠️ Maintenance</option>
+                <option value="integration">🔗 Integration</option>
+                <option value="migration">📦 Migration</option>
               </select>
             </div>
             <div class="form-group">
@@ -436,6 +469,22 @@ function getAppTemplate() {
           </div>
           <div class="modal-footer">
             <button class="btn btn-primary" id="saveHolidaysBtn" type="button">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal" id="typePreferencesModal" aria-hidden="true" role="dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 id="typePreferencesModalTitle">🎯 Task Type Preferences</h2>
+            <button class="modal-close" id="closeTypePreferencesModal" aria-label="Close preferences modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="form-hint">Set preferences to influence auto-allocation. Preferred types will be prioritized, avoided types will be assigned only if necessary.</p>
+            <div id="typePreferencesList" class="type-preferences-list"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary" id="saveTypePreferencesBtn" type="button">Done</button>
           </div>
         </div>
       </div>
