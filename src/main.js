@@ -61,11 +61,6 @@ function getAppTemplate() {
               <option value="6weeks">6 Weeks</option>
               <option value="2weeks">2 Weeks (detailed)</option>
             </select>
-            <select id="groupBySelect" aria-label="Group timeline by">
-              <option value="person">By Person</option>
-              <option value="project">By Project</option>
-              <option value="status">By Status</option>
-            </select>
           </div>
         </div>
         <div class="toolbar-right">
@@ -128,6 +123,11 @@ function getAppTemplate() {
           </div>
           <div class="backlog-actions">
             <span class="todo-count" id="backlogCount">0</span>
+            <select class="form-select form-select-small" id="allocationStrategy" title="Allocation strategy">
+              <option value="fit-all">Fit everything</option>
+              <option value="comfortable">Comfortable load</option>
+              <option value="balanced">Balanced through Q</option>
+            </select>
             <button class="btn btn-secondary btn-small" id="autoAllocateBtn" type="button">Auto allocate</button>
             <button class="btn btn-secondary btn-small" id="resetBoardBtn" type="button">Reset board</button>
             <button class="btn btn-secondary btn-small" id="toggleBacklogBtn" type="button">Expand</button>

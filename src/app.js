@@ -650,12 +650,10 @@ class QuarterBackApp {
       <article class="backlog-card type-${themeSlug}" data-id="${project.id}">
         <div class="backlog-card-header">
           <h4>${this.escapeHtml(project.name)}</h4>
-          <span class="theme-pill">${this.escapeHtml(themeLabel)}</span>
         </div>
         <div class="todo-meta">
           ${badges.join('')}
         </div>
-        <p class="todo-hint">Drag to a teammate lane to schedule.</p>
       </article>
     `;
   }
@@ -679,6 +677,10 @@ class QuarterBackApp {
       return;
     }
 
+    // Get selected allocation strategy
+    const strategySelect = document.getElementById('allocationStrategy');
+    const strategy = strategySelect?.value || 'fit-all';
+
     const availability = this.buildTeamAvailability(rangeStart, rangeEnd);
     let scheduled = 0;
 
@@ -693,7 +695,7 @@ class QuarterBackApp {
     });
 
     sortedBacklog.forEach((project) => {
-      if (this.allocateProjectFromAvailability(project, availability, rangeStart, rangeEnd)) {
+      if (this.allocateProjectFromAvailability(project, availability, rangeStart, rangeEnd, strategy)) {
         scheduled += 1;
       }
     });
@@ -828,7 +830,7 @@ class QuarterBackApp {
     return result;
   }
 
-  allocateProjectFromAvailability(project, availability, rangeStart, rangeEnd) {
+  allocateProjectFromAvailability(project, availability, rangeStart, rangeEnd, strategy = 'fit-all') {
     const entries = Object.entries(availability).map(([memberId, meta]) => ({
       memberId: parseInt(memberId, 10),
       nextAvailable: meta.nextAvailable,
@@ -841,11 +843,15 @@ class QuarterBackApp {
 
     const requiredDays = this.estimateProjectDurationDays(project);
 
-    // Score each team member based on multiple factors
+    // Score each team member based on strategy
     const rangeMs = Math.max(1, rangeEnd - rangeStart);
+    const quarterWeeks = Math.ceil((rangeEnd - rangeStart) / (7 * 24 * 60 * 60 * 1000));
+    
     entries.forEach((entry) => {
       // Calculate remaining capacity for this member
       const remainingCapacity = Math.max(0, entry.effectiveCapacity - entry.load);
+      const newLoad = entry.load + requiredDays;
+      const newUtilization = entry.effectiveCapacity > 0 ? newLoad / entry.effectiveCapacity : 1;
       
       // Can they fit this project?
       entry.canFit = remainingCapacity >= requiredDays;
@@ -862,19 +868,63 @@ class QuarterBackApp {
       // Focus penalty: prefer full-time ICs over managers with split focus
       const focusPenalty = 1 - entry.focusPercent;
       
-      // Type preference score: how much does this member want this type of work?
-      // Returns: loved=-0.2, preferred=-0.1, neutral=0, avoided=0.15, disliked=0.3
+      // Type preference score
       const typePreferenceScore = this.getTypePreferenceScore(entry.memberId, project.type);
       
-      // Composite score (lower is better):
-      // - 30% weight to availability (prefer sooner start)
-      // - 35% weight to load balance (prefer less loaded members)
-      // - 15% weight to focus (prefer dedicated team members)
-      // - 20% weight to type preference (prefer members who enjoy this work)
-      entry.score = (normalizedAvailability * 0.30) + 
-                   (capacityUtilization * 0.35) + 
-                   (focusPenalty * 0.15) +
-                   (typePreferenceScore * 0.20);
+      // Strategy-specific scoring
+      if (strategy === 'comfortable') {
+        // Comfortable load: Target 70% utilization, penalize overloading
+        const targetUtilization = 0.70;
+        const utilizationPenalty = newUtilization > targetUtilization 
+          ? (newUtilization - targetUtilization) * 3 // Heavy penalty for going over 70%
+          : 0;
+        entry.canFit = newUtilization <= 0.85; // Hard stop at 85%
+        
+        entry.score = (normalizedAvailability * 0.20) + 
+                     (utilizationPenalty * 0.40) +
+                     (capacityUtilization * 0.20) + 
+                     (focusPenalty * 0.05) +
+                     (typePreferenceScore * 0.15);
+      } else if (strategy === 'balanced') {
+        // Balanced through Q: Spread work evenly across weeks, minimize peaks
+        // Calculate how this allocation would affect weekly distribution
+        const weekFromStart = Math.floor(availabilityOffset / (7 * 24 * 60 * 60 * 1000));
+        const idealWeeklyLoad = entry.effectiveCapacity / Math.max(1, quarterWeeks);
+        const currentWeeklyAvg = entry.load / Math.max(1, weekFromStart + 1);
+        const loadVariancePenalty = Math.abs(currentWeeklyAvg - idealWeeklyLoad) / idealWeeklyLoad;
+        
+        // Also penalize high overall utilization to leave buffer
+        const targetUtilization = 0.80;
+        const utilizationPenalty = newUtilization > targetUtilization 
+          ? (newUtilization - targetUtilization) * 2
+          : 0;
+        
+        entry.score = (loadVariancePenalty * 0.35) +
+                     (utilizationPenalty * 0.25) +
+                     (normalizedAvailability * 0.15) + 
+                     (focusPenalty * 0.10) +
+                     (typePreferenceScore * 0.15);
+      } else {
+        // fit-all (default): Prioritize fitting everything by earliest completion
+        // Calculate when this member would complete the project
+        const adjustedDays = Math.ceil(requiredDays / entry.focusPercent);
+        const startCandidate = entry.nextAvailable > rangeStart ? entry.nextAvailable : rangeStart;
+        const estimatedEndMs = startCandidate.getTime() + (adjustedDays * 1.4 * 24 * 60 * 60 * 1000); // ~1.4 accounts for weekends
+        const normalizedEndTime = (estimatedEndMs - rangeStart.getTime()) / rangeMs;
+        
+        // Primary: earliest completion time (heavily weighted)
+        // Secondary: can they fit it at all
+        // Tertiary: type preference
+        entry.score = (normalizedEndTime * 0.60) + 
+                     (focusPenalty * 0.10) +
+                     (typePreferenceScore * 0.30);
+        
+        // If they can't fit, check if project would end after quarter
+        const wouldEndAfterQuarter = estimatedEndMs > rangeEnd.getTime();
+        if (wouldEndAfterQuarter) {
+          entry.canFit = false;
+        }
+      }
       
       // Heavy penalty if they can't fit the project
       if (!entry.canFit) {
