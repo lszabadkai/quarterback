@@ -913,20 +913,17 @@ class QuarterBackApp {
         const normalizedEndTime = (estimatedEndMs - rangeStart.getTime()) / rangeMs;
         
         // Primary: earliest completion time (heavily weighted)
-        // Secondary: can they fit it at all
-        // Tertiary: type preference
-        entry.score = (normalizedEndTime * 0.60) + 
+        // Secondary: type preference
+        // For fit-all, we ALWAYS try to fit - ignore capacity limits
+        entry.score = (normalizedEndTime * 0.70) + 
                      (focusPenalty * 0.10) +
-                     (typePreferenceScore * 0.30);
+                     (typePreferenceScore * 0.20);
         
-        // If they can't fit, check if project would end after quarter
-        const wouldEndAfterQuarter = estimatedEndMs > rangeEnd.getTime();
-        if (wouldEndAfterQuarter) {
-          entry.canFit = false;
-        }
+        // For fit-all, always mark as can fit - we'll schedule even past quarter if needed
+        entry.canFit = true;
       }
       
-      // Heavy penalty if they can't fit the project
+      // Heavy penalty if they can't fit the project (but not for fit-all strategy)
       if (!entry.canFit) {
         entry.score += 10;
       }
@@ -943,7 +940,8 @@ class QuarterBackApp {
       const adjustedDays = Math.ceil(requiredDays / entry.focusPercent);
       const end = this.addWorkingDaysForMember(start, adjustedDays, entry.ptoDates);
       
-      if (end.getTime() > rangeEnd.getTime()) {
+      // For fit-all strategy, ignore quarter end limit - fit everything
+      if (strategy !== 'fit-all' && end.getTime() > rangeEnd.getTime()) {
         continue;
       }
       
