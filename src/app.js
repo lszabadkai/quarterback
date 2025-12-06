@@ -43,6 +43,8 @@ export class QuarterBackApp {
     this.suppressCloudAutoSave = false;
     this.lastCloudLoadAt = 0;
     this.cloudStatusTimer = null;
+    this.tourActive = false;
+    this.tourStepIndex = 0;
   }
 
   async init() {
@@ -67,6 +69,7 @@ export class QuarterBackApp {
     if (this.isDemoMode) {
       this.showDemoBanner();
     }
+    this.ensureTourOverlay();
   }
 
   loadData() {
@@ -441,6 +444,145 @@ export class QuarterBackApp {
 
   closeAccountMenu() {
     this.toggleAccountMenu(false);
+  }
+
+  ensureTourOverlay() {
+    let overlay = document.getElementById('tourOverlay');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'tourOverlay';
+    overlay.className = 'tour-overlay hidden';
+    overlay.innerHTML = `
+      <div class="tour-card" role="dialog" aria-live="polite">
+        <div class="tour-step" id="tourStepIndicator"></div>
+        <h3 id="tourTitle"></h3>
+        <p id="tourBody"></p>
+        <div class="tour-actions">
+          <button class="btn btn-secondary btn-small" id="tourSkipBtn" type="button">Skip tour</button>
+          <div class="tour-nav">
+            <button class="btn btn-secondary btn-small" id="tourPrevBtn" type="button">Back</button>
+            <button class="btn btn-primary btn-small" id="tourNextBtn" type="button">Next</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#tourSkipBtn')?.addEventListener('click', () => this.endOnboardingTour());
+    overlay.querySelector('#tourPrevBtn')?.addEventListener('click', () => this.prevTourStep());
+    overlay.querySelector('#tourNextBtn')?.addEventListener('click', () => this.nextTourStep());
+    return overlay;
+  }
+
+  getOnboardingSteps() {
+    return [
+      {
+        id: 'capacity',
+        title: 'Set your team capacity',
+        body: 'Open the Capacity panel to confirm team size, PTO, and reserves, then apply.',
+        target: '#capacityBtn',
+      },
+      {
+        id: 'addProject',
+        title: 'Add a project',
+        body: 'Capture work with + Add Project. Save leaves it in the backlog to schedule later.',
+        target: '#addProjectBtn',
+      },
+      {
+        id: 'schedule',
+        title: 'Schedule from backlog',
+        body: 'Drag a backlog card onto the timeline to set dates and owners.',
+        target: '#backlogDock',
+      },
+      {
+        id: 'account',
+        title: 'Account, exports, and themes',
+        body: 'Open the avatar to export/import, share, and switch themes. Cloud sync is here too.',
+        target: '#authBtn',
+      },
+    ];
+  }
+
+  startOnboardingTour() {
+    if (this.tourActive) return;
+    this.ensureTourOverlay();
+    this.tourSteps = this.getOnboardingSteps();
+    this.tourStepIndex = 0;
+    this.tourActive = true;
+    this.showTourStep();
+  }
+
+  endOnboardingTour() {
+    this.tourActive = false;
+    this.tourStepIndex = 0;
+    this.clearTourHighlight();
+    const overlay = document.getElementById('tourOverlay');
+    if (overlay) overlay.classList.add('hidden');
+  }
+
+  nextTourStep() {
+    if (!this.tourActive) return;
+    if (this.tourStepIndex < this.tourSteps.length - 1) {
+      this.tourStepIndex += 1;
+      this.showTourStep();
+    } else {
+      this.endOnboardingTour();
+      this.showToast('Tour completed', 'success');
+    }
+  }
+
+  prevTourStep() {
+    if (!this.tourActive) return;
+    if (this.tourStepIndex > 0) {
+      this.tourStepIndex -= 1;
+      this.showTourStep();
+    }
+  }
+
+  advanceTourIfTarget(id) {
+    if (!this.tourActive) return;
+    const step = this.tourSteps?.[this.tourStepIndex];
+    if (step?.id === id) {
+      this.nextTourStep();
+    }
+  }
+
+  clearTourHighlight() {
+    document.querySelectorAll('.tour-highlight').forEach((el) => {
+      el.classList.remove('tour-highlight');
+      el.removeAttribute('data-tour');
+    });
+  }
+
+  showTourStep() {
+    if (!this.tourActive) return;
+    const overlay = this.ensureTourOverlay();
+    const step = this.tourSteps?.[this.tourStepIndex];
+    if (!step) {
+      this.endOnboardingTour();
+      return;
+    }
+    this.clearTourHighlight();
+
+    const target = document.querySelector(step.target);
+    if (target) {
+      target.classList.add('tour-highlight');
+      target.setAttribute('data-tour', step.id);
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    const titleEl = overlay.querySelector('#tourTitle');
+    const bodyEl = overlay.querySelector('#tourBody');
+    const stepEl = overlay.querySelector('#tourStepIndicator');
+    const nextBtn = overlay.querySelector('#tourNextBtn');
+    const prevBtn = overlay.querySelector('#tourPrevBtn');
+
+    if (titleEl) titleEl.textContent = step.title;
+    if (bodyEl) bodyEl.textContent = step.body;
+    if (stepEl) stepEl.textContent = `Step ${this.tourStepIndex + 1} of ${this.tourSteps.length}`;
+    if (nextBtn) nextBtn.textContent = this.tourStepIndex === this.tourSteps.length - 1 ? 'Finish' : 'Next';
+    if (prevBtn) prevBtn.disabled = this.tourStepIndex === 0;
+
+    overlay.classList.remove('hidden');
   }
 
   getAuthDisplayName() {
@@ -1506,6 +1648,9 @@ export class QuarterBackApp {
     if (announce) {
       this.showToast('Returned to backlog dock', 'success');
     }
+    if (this.tourActive) {
+      this.advanceTourIfTarget('schedule');
+    }
   }
 
   resetBoardToBacklog() {
@@ -2556,6 +2701,10 @@ export class QuarterBackApp {
 
     this.renderMemberBreakdown(result.memberBreakdown);
 
+    if (this.tourActive) {
+      this.advanceTourIfTarget('capacity');
+    }
+
     return { config, result };
   }
 
@@ -2573,6 +2722,9 @@ export class QuarterBackApp {
     this.closeCapacityModal();
     this.showToast('Capacity settings applied successfully', 'success');
     this.refreshGantt();
+    if (this.tourActive) {
+      this.advanceTourIfTarget('capacity');
+    }
   }
 
   updateTeamSize(newSize) {
@@ -2746,13 +2898,20 @@ export class QuarterBackApp {
       banner.innerHTML = `
         <span class="demo-icon">🎓</span>
         <span class="demo-text">You're viewing demo data. Explore the features, then start fresh with your own data.</span>
-        <button class="demo-btn demo-btn-primary" id="startFreshBtn">Start Fresh</button>
-        <button class="demo-btn demo-btn-secondary" id="dismissDemoBtn">Dismiss</button>
+        <div class="demo-actions">
+          <button class="demo-btn demo-btn-secondary" id="startTourBtn">Tour the demo</button>
+          <button class="demo-btn demo-btn-primary" id="startFreshBtn">Start Fresh</button>
+          <button class="demo-btn demo-btn-ghost" id="dismissDemoBtn">Dismiss</button>
+        </div>
       `;
       document.body.insertBefore(banner, document.body.firstChild);
       
       document.getElementById('startFreshBtn').addEventListener('click', () => {
         this.exitDemoMode();
+      });
+
+      document.getElementById('startTourBtn').addEventListener('click', () => {
+        this.startOnboardingTour();
       });
       
       document.getElementById('dismissDemoBtn').addEventListener('click', () => {
@@ -2765,6 +2924,7 @@ export class QuarterBackApp {
     if (confirm('This will clear all demo data and give you a fresh start. Continue?')) {
       Storage.clearAndStartFresh();
       this.isDemoMode = false;
+      this.endOnboardingTour();
       
       // Reload the app with fresh data
       this.loadData();
@@ -2954,6 +3114,9 @@ export class QuarterBackApp {
       }
     } else {
       this.projects.push({ id: Date.now(), ...projectData });
+      if (this.tourActive) {
+        this.advanceTourIfTarget('addProject');
+      }
       this.showToast(
         !isScheduled
           ? 'Project added to backlog dock'
