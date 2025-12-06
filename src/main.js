@@ -4,18 +4,19 @@ import App, { QuarterBackApp } from "./app.js";
 const mount = document.querySelector("#app");
 
 if (!mount) {
-    throw new Error("Root element #app not found");
+  throw new Error("Root element #app not found");
 }
 
-mount.innerHTML = getAppTemplate();
+const logoSrc = `${(import.meta.env?.BASE_URL ?? "/")}`.replace(/\/?$/, "/").concat("quarterback-logo.png");
+mount.innerHTML = getAppTemplate({ logoSrc });
 
 const app = App instanceof QuarterBackApp ? App : new QuarterBackApp();
 window.App = app;
 (async () => {
-    await app.init();
+  await app.init();
 })();
 
-function getAppTemplate() {
+function getAppTemplate({ logoSrc }) {
     return `
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="app-shell" role="application" aria-label="QuarterBack Planning Tool">
@@ -23,7 +24,7 @@ function getAppTemplate() {
         <div class="header-content">
           <nav class="header-controls" aria-label="Main navigation">
           <h1 class="brand">
-            <img src="/quarterback-logo.png" alt="" class="brand-logo" aria-hidden="true" />
+            <img src="${logoSrc}" alt="" class="brand-logo" aria-hidden="true" />
             <span class="brand-text">QuarterBack</span>
           </h1>
             <select id="quarterSelect" class="quarter-select" aria-label="Select quarter">
